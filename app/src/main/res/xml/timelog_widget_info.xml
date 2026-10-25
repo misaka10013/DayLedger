@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小部件的声明。系统（和小部件选择器）读的是这个文件。
+
+  尺寸三档对应 TimelineWidget 里那三个 DpSize：
+    2×1（窄）→ 只显示「事项 + 时长 + ■」
+    4×1（宽）→ 多一行起点时间
+    4×2（高）→ 再加迷你色条 + 今日已记录/未记录
+
+  ⚠️ resizeMode 横竖都开：御坂要的是「拉大就多显示」，
+     所以三档必须真的能被用户拖出来。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:maxResizeWidth="280dp"
+    android:maxResizeHeight="140dp"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_desc"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000" />

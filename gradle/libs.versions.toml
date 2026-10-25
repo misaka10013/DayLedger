@@ -1,0 +1,80 @@
+# ============================================================================
+# 版本目录（Version Catalog）
+# ----------------------------------------------------------------------------
+# 所有依赖版本集中在这里，改版本只改这一个文件。
+# ============================================================================
+
+[versions]
+# --- 构建工具链 ---
+agp = "8.7.3"              # Android Gradle Plugin，需 Gradle 8.9+
+kotlin = "2.0.21"          # Kotlin 2.0 起，Compose 编译器由 Kotlin 插件自带
+
+# --- AndroidX 基础库 ---
+coreKtx = "1.15.0"
+lifecycle = "2.8.7"
+activityCompose = "1.9.3"
+
+# --- Compose ---
+# 用 BOM 统一管理所有 compose-* 的版本，下面各库不写具体版本号
+composeBom = "2024.12.01"
+
+# --- 桌面小部件 ---
+# Glance 让你用 Compose 的写法去画「桌面小部件」。
+# ⚠️ 版本选 1.1.1 而不是 1.2.0：后者依赖 Compose 1.8，而本工程的 BOM 是
+#    2024.12.01（Compose 1.7.6）。硬凑的结果是同一套 compose-runtime 出现两个版本 ——
+#    编译能过、运行期行为没人敢保证，属于自找麻烦。1.1.1 与 Compose 1.7.x 是配套的。
+glance = "1.1.1"
+
+# --- 数据层 ---
+room = "2.6.1"
+# ⚠️ KSP 版本必须与 Kotlin 版本【严格对应】，只有 2.0.21-* 这几个能用
+ksp = "2.0.21-1.0.28"
+
+# --- 测试 ---
+junit = "4.13.2"
+# Room 的内存数据库需要 Android 环境，纯 JVM 跑不了 → 靠 Robolectric 在 JVM 上模拟
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
+coroutines = "1.9.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+# ViewModel + Compose 的桥：让界面能拿到带状态的 ViewModel（不是每次重组都新建）
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+# Compose 全家桶：BOM 负责对齐版本，其余不带 version
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+# 扩展图标集（时间线/统计等图标不在 core 图标集里）
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# --- 桌面小部件（Glance）---
+# glance-appwidget：小部件本体（接收系统广播 + 画界面）
+# glance-material3：借用 Material3 的主题色（小部件里也要跟 App 一个配色）
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+
+# --- Room（本地数据库）---
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# --- 测试 ---
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# Kotlin 2.0+ 的 Compose 编译器插件，必须与 Kotlin 版本一致
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# KSP：Room 的注解处理器（比老的 kapt 快得多）
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

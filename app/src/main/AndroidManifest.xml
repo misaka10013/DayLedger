@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  时间日志 App · 应用清单
+
+  权限：**只有一条 INTERNET**（M4-B 加，2026-10-17）—— 在那之前是**一条都没有**。
+  它是 Android 的「普通权限」：安装时不弹窗、不用用户点同意，也不涉及任何隐私数据；
+  能做的事只有「允许这个应用打开网络连接」。没有它，云端同步那一段连请求都发不出去。
+
+  ⚠️ 刻意**没有**申请的，以及为什么：
+    · READ/WRITE_EXTERNAL_STORAGE —— 备份走应用私有目录，不需要
+    · SCHEDULE_EXACT_ALARM —— 小部件用的是非精确重复闹钟，够用
+    · POST_NOTIFICATIONS / 前台服务 —— 本项目**不做通知栏常驻**（M3-D 裁定）：
+      核心数据不依赖后台保活（记录/模板/跨天接续都是「下次操作时补算」），
+      桌面小部件用闹钟刷新就够，不值得为它多背一条权限和一套白名单
+    · RECEIVE_BOOT_COMPLETED —— 同上；运行态已落表，闹钟靠 APPWIDGET_UPDATE 自己回来
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 唯一的权限：云同步要发 HTTP 请求（见 cloud/SyncClient.kt）。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".TimeLogApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TimeLog">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.TimeLog"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          桌面悬浮选事项窗 —— 点小部件上那个 ■ / ▶ 时浮出来的一层。
+
+          ⚠️ taskAffinity="" + excludeFromRecents：让它**不混进 App 自己的任务栈**。
+             不这么设的话，从桌面点小部件会在「最近任务」里留下一条 App 的痕迹，
+             而且按返回可能退回到 App 主界面 —— 那就成了「进了 App」，
+             正是这个窗口要避免的事。
+          ⚠️ exported="false"：只有本应用能唤起它（小部件点击走的是同 uid 的 PendingIntent）。
+        -->
+        <activity
+            android:name=".widget.QuickSwitchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TimeLog.QuickSwitch"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <!--
+          桌面小部件。
+          ⚠️ exported="false" —— 更新广播由系统（AppWidgetService）发出，
+             它不受这个标记限制。Glance 官方示例也是 false。
+        -->
+        <receiver
+            android:name=".widget.TimelineWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/timelog_widget_info" />
+        </receiver>
+
+        <!--
+          「每分钟到了」这个闹钟的落点。
+          ⚠️ action 是自定义的（不是系统广播），所以静态注册在 Android 8+ 完全没有限制。
+          ⚠️ 非精确重复闹钟**不需要任何权限**（SCHEDULE_EXACT_ALARM 那个要用户去设置里开，
+             为一个小部件的数字去要它不值当）—— 所以这里一条 uses-permission 都不用加。
+        -->
+        <receiver
+            android:name=".widget.WidgetTickReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

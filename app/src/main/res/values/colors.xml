@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动图标背景色（自适应图标用） -->
+    <color name="ic_launcher_background">#4C6FE8</color>
+
+    <!--
+      桌面小部件的配色（浅色）。
+
+      ⚠️ 深色版在 `values-night/colors.xml` —— **两边必须成对增删**。
+         少一边不会编译报错，只会在深色模式下运行期取不到。
+
+      ⚠️ 为什么不像别处那样写死在 Kotlin 里：
+         Glance 1.1.1 的 `ColorProvider` 只有两种工厂函数 ——
+         「固定色」和「资源色」，**没有「白天/夜晚」双参版本**（实测过 jar）。
+         要跟系统深色模式，就只能走资源限定符。
+         正好这样也更规范：改配色不用碰代码。
+    -->
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_title_ink">#1B1B1F</color>
+    <color name="widget_sub_ink">#5B6478</color>
+    <color name="widget_stop_bg">#4C6FE8</color>
+    <color name="widget_stop_ink">#FFFFFF</color>
+    <color name="widget_go_bg">#DCE3FF</color>
+    <color name="widget_go_ink">#11214C</color>
+</resources>

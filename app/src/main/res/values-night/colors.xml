@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小部件 · 深色配色。
+
+  系统开了深色模式时，Android 会自动挑这里、而不是 values/colors.xml。
+  ⚠️ 这里的名字必须跟 values/colors.xml 里**一个一个对上** —— 少一个就会
+     悄悄退回浅色（不报错），结果是小部件深色底上飘一个字浅色字，看不清。
+
+  取值跟 App 主题里的深色一档对齐（`ui/theme/Color.kt`），免得「App 里是这个蓝、
+  桌面上是另一个蓝」。
+-->
+<resources>
+    <color name="widget_surface">#1A1C21</color>
+    <color name="widget_title_ink">#E3E2E6</color>
+    <color name="widget_sub_ink">#C2CAD9</color>
+    <color name="widget_stop_bg">#34468B</color>
+    <color name="widget_stop_ink">#FFFFFF</color>
+    <color name="widget_go_bg">#34468B</color>
+    <color name="widget_go_ink">#DCE3FF</color>
+</resources>

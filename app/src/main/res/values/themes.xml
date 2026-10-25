@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  只用系统自带的 NoActionBar 主题作为「容器」。
+  界面本身完全由 Compose 绘制，所以这里不需要 AppCompat / Material 组件库的主题，
+  这样可以少一个 appcompat 依赖，安装包也小一点。
+-->
+<resources>
+    <style name="Theme.TimeLog" parent="android:Theme.Material.NoActionBar">
+        <!-- 状态栏透明，让 Compose 自己画到边到角（配合 MainActivity 的 enableEdgeToEdge） -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!--
+      桌面悬浮选事项窗（QuickSwitchActivity）用的主题。
+      ★ 它没有显式写 parent —— Android 的隐式继承会让 Theme.TimeLog.QuickSwitch
+        自动继承 Theme.TimeLog，只需要覆盖下面这几项。
+
+      ★ 窗口本身必须**完全透明**：真正看得见的东西（半透明遮罩 + 底部那张六列网格）
+        全部由 Compose 画。用 Theme.TimeLog 的话，启动瞬间就是一块不透明的底
+        盖住桌面 —— 那看着像「打开了 App」，不是「浮出一层」。
+
+      ★ windowAnimationStyle = @null：关掉系统默认的「从下往上」Activity 动画。
+        不然会和 ModalBottomSheet 自己的滑入动画叠成两次 —— 视觉上像弹了两下。
+    -->
+    <style name="Theme.TimeLog.QuickSwitch">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

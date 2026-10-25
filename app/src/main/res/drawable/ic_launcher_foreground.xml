@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动图标前景层。
+  图案：三条长度递减的横条 = 「一天里被记录下来的时间块」，抽象但一眼能看出是时间轴 / 甘特图。
+  注意自适应图标的安全区是中间 72×72（即 18~90），图案画在 28~80 之间，不会被圆形遮罩裁到。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,30 L80,30 L80,42 L28,42 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,48 L68,48 L68,60 L28,60 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,66 L56,66 L56,78 L28,78 Z" />
+
+    <!-- 右侧小方块：当前时刻游标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55"
+        android:pathData="M74,48 L84,48 L84,60 L74,60 Z" />
+
+</vector>
