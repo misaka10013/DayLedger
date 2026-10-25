@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">时间日志</string>
+    <string name="app_name">一天账本</string>
 
     <!-- 桌面小部件：名字出现在系统「添加小部件」那个列表里 -->
-    <string name="widget_label">时间日志 · 现在在干什么</string>
+    <string name="widget_label">一天账本 · 现在在干什么</string>
     <string name="widget_desc">看看现在在记什么、今天漏了没有。点一下就能换下一件事。</string>
 </resources>

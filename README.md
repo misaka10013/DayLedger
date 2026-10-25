@@ -1,7 +1,9 @@
-# 时间日志 · TimeLog
+# 一天账本 · DayLedger
 
 > 一个把「一天 1440 分钟」当账本记的安卓 App。
 > 纯本地、纯离线、Kotlin + Jetpack Compose 单 Activity，**五百多条单元测试**全部跑在 JVM 上。
+
+**为什么叫这个名**：一天只有 1440 分钟，花掉就没了。钱你会记账，时间其实更该记。
 
 <p>
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin&logoColor=white">
