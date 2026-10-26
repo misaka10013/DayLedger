@@ -40,7 +40,7 @@
 
 ![统计界面](https://vdio-1252926453.cos.ap-chengdu.myqcloud.com/picgo/wx_20261026164117_2081_2.jpg)
 
-![设置界面](https://vdio-1252926453.cos.ap-chengdu.myqcloud.com/picgo/wx_20261026164117_2081_2.jpg)
+![设置界面](https://vdio-1252926453.cos.ap-chengdu.myqcloud.com/picgo/wx_20261026164117_2080_2.jpg)
 
 ---
 
