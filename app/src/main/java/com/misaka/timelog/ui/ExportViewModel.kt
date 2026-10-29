@@ -36,12 +36,22 @@ enum class ExportKind(
     /**
      * 给 AI 读：摘要 + 逐天明细。
      *
-     * ⚠️ MIME 用 `text/plain` 而**不是** `text/markdown`：后者在部分国产 ROM 的
-     * 文件选择器里没有对应项，`CreateDocument` 会直接报「无法保存到此位置」。
-     * 文件后缀仍然是 `.md`（文件名是我们给的），内容和给 AI 读的效果一模一样 ——
-     * 为了一个纯粹的标签去赌兼容性不值当。
+     * ## ⚠️ MIME 必须跟后缀**对得上**，这是真机上踩出来的
+     *
+     * 一开始这里写的是 `text/plain`，理由是「`text/markdown` 在部分国产 ROM 里
+     * 没有对应项，会报无法保存」—— 这是个**没验证过的猜测**，而且猜错了方向。
+     *
+     * 真机（HyperOS / Android 16）实测：`text/plain` 的规范后缀是 `.txt`，
+     * 系统文件选择器发现我们给的文件名结尾是 `.md`（不是它认识的 `text/plain` 后缀），
+     * 就**在后面又补了一个 `.txt`** —— 存出来是 `一天账本-给AI-2026-10-29.md.txt`。
+     * 内容没错，但名字看着像 bug。
+     *
+     * 换成 `text/markdown` 之后系统认这个后缀，名字就是原样的 `.md`。
+     *
+     * 教训：**MIME 不是「随便标个大概的」**，它决定系统替你补什么后缀。
+     * 要么 MIME 和后缀一致，要么就别带后缀让系统自己补。
      */
-    Ai(ext = "md", mime = "text/plain", actionLabel = "保存给 AI 的文件", fileLabel = "给AI"),
+    Ai(ext = "md", mime = "text/markdown", actionLabel = "保存给 AI 的文件", fileLabel = "给AI"),
 }
 
 /**
