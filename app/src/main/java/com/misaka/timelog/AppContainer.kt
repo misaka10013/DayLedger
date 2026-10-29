@@ -4,6 +4,7 @@ import android.content.Context
 import com.misaka.timelog.cloud.SyncEngine
 import com.misaka.timelog.cloud.SyncPrefs
 import com.misaka.timelog.data.TimeLogDatabase
+import com.misaka.timelog.data.export.DataExport
 import com.misaka.timelog.data.import.LegacyImport
 import com.misaka.timelog.data.repo.CatalogRepository
 import com.misaka.timelog.data.repo.StatsRepository
@@ -65,6 +66,17 @@ class AppContainer(context: Context) {
      */
     val legacyImport: LegacyImport =
         LegacyImport(db, timeline, context.applicationContext.assets)
+
+    /**
+     * 把本地数据导出成文件（备份 JSON / 给 AI 的 Markdown）。
+     *
+     * ⚠️ 它跟 [legacyImport] 是**一对镜像**：那边「名字 → id」写进库，
+     * 这边「id → 名字」捞出来。两边共用同一套 JSON schema，
+     * 所以导出的文件能被自己的导入功能读回去（这是备份能用的前提）。
+     *
+     * ⚠️ 它**一行都不写库**。导出失败最多是「文件没生成」，不可能动到记录。
+     */
+    val dataExport: DataExport = DataExport(db, clock)
 
     /**
      * 云同步的本地设置（开关 / token / 水位线 / 上次结果）。

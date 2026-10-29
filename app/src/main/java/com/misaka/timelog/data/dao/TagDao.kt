@@ -91,4 +91,19 @@ interface TagDao {
         """
     )
     suspend fun countRecordRefs(tagId: String): Int
+
+    /**
+     * **整张 `record_tags` 一次取回** —— 只给「导出全部数据」用。
+     *
+     * ## 为什么不用上面那个 [refsOfRecords]
+     *
+     * 那个按 id 列表查，适合「当前这一屏几十条」。而导出要的是几千条：
+     * 真实库里 `record_tags` 有 **11760 行**，一条一条查是 N+1，
+     * 攒成一个大 `IN (:ids)` 又会撞 SQLite 的绑定参数上限
+     * （旧版默认 999，新版 32766 —— 库一大就越界，而且报错只在数据多的机器上出现）。
+     *
+     * 导出本来就是「全量」，所以直接全取最省事也最快。
+     */
+    @Query("SELECT * FROM record_tags")
+    suspend fun allRefs(): List<RecordTagEntity>
 }

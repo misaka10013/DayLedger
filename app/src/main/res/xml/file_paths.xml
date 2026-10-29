@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  分享文件时对外暴露的路径 —— 由 FileProvider 使用（见 AndroidManifest.xml）。
+
+  ★ 只开 cacheDir 下的 exports/ 一个子目录，别的一概不给。
+
+  为什么范围要卡这么死：FileProvider 的每一条 <paths> 都是一扇「别的 App
+  可以申请临时读取」的门。写了 `cache-path path="."` 就等于把整个缓存目录
+  （包括可能有的崩溃日志、临时图片）都递出去了。这里只需要放下导出的那个文件，
+  所以只开一格 —— 越界的东西连申请的机会都没有。
+
+  ⚠️ 这个名字（exports）必须跟 `ExportViewModel.SHARE_DIR` 一致，
+     改了这边不改那边，症状是分享时 `IllegalArgumentException:
+     Failed to find configured root that contains ...`，而且只有点了「分享」才会崩。
+-->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

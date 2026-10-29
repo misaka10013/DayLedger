@@ -5,6 +5,9 @@
 // 数据层（Room）、时间线、模板、统计等在 M1 之后逐步加入。
 // ============================================================================
 
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -12,6 +15,23 @@ plugins {
     // KSP：Room 的注解处理器（比老的 kapt 快很多）
     alias(libs.plugins.ksp)
 }
+
+/* ---------------------------------------------------------------------------
+ * 正式签名的凭证从 `key.properties` 读（该文件不进仓库）
+ *
+ * ★ 关键设计：**没有这个文件时不能构挂**。
+ *   开源仓库里当然没有它（那是作者的私钥），别人 clone 之后要能
+ *   直接 `./gradlew assembleRelease` 打出一个能装的包来试。
+ *   所以下面 buildTypes 里做了回退：缺凭证就退回 debug 签名 ——
+ *   包能装、能跑，只是**不能拿去发版**（签名不同，老用户升级不上）。
+ * ------------------------------------------------------------------------- */
+val keystorePropsFile = rootProject.file("key.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        FileInputStream(keystorePropsFile).use { load(it) }
+    }
+}
+val hasReleaseKey = keystorePropsFile.exists()
 
 android {
     // 代码包名空间（与 applicationId 可以不同，这里保持一致好认）
@@ -31,11 +51,26 @@ android {
         // 目标版本跟随最新，才能享受新系统的行为优化
         targetSdk = 35
 
-        versionCode = 1
-        versionName = "0.1.0"
+        // ⚠️ 发版之后**只能往上加**，不能减也不能重复。
+        //    v1.0.0 新增：本地导出 / 分享 / 从文件导入。
+        versionCode = 2
+        versionName = "1.0.0"
 
         // 单元测试用的 JUnit 运行器（M1 写数据层测试时会用到）
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                // ⚠️ `rootProject.file` 而不是 `file` —— key.properties 里的路径
+                //    是相对**工程根目录**写的，直接 `file()` 会解析成 app/ 下，找不到。
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -46,6 +81,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // 有私钥 → 用正式签名；没有（别人 clone 的仓库）→ 退回 debug 签名，
+            // 保证「clone 下来能打包」这件事不被私钥卡住。
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

@@ -1,5 +1,7 @@
 package com.misaka.timelog.ui.screen
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,6 +61,16 @@ fun ImportScreen(
     val snackbar = remember { SnackbarHostState() }
     MessageHost(vm.messages, snackbar)
 
+    // SAF 选文件：不需要任何存储权限 —— 用户选中那一份，App 拿到的是**那一个** Uri 的临时读权限。
+    //
+    // ⚠️ MIME 用 `*/*` 而不是 `application/json`：国产 ROM 的文件选择器对自定义 MIME
+    //    过滤得很随意，写死 `application/json` 时用户在「下载」目录里可能根本看不到
+    //    自己刚导出的 .json（灰着、或者干脆不列出来）。反正 `LegacyImport` 会拒绝
+    //    任何不像备份的文件，放宽选择范围不会带来风险。
+    val pickFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { vm.useFile(it) } }
+
     val scroll = rememberScrollState()
 
     // ★ 导入完成后自动滚到底。
@@ -97,17 +109,52 @@ fun ImportScreen(
                 .padding(horizontal = 20.dp),
         ) {
             Text(
-                text = "把旧版「时间日志」里记了一年多的历史搬进来。\n" +
+                text = "可以把旧版「时间日志」的历史搬进来，也可以导入自己导出的备份。" +
                     "事项和标签会按名字对上，App 里没有的会新建。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
             )
 
+            /* ★ 来源卡片。
+
+               为什么把它放在最上面：这一页原本只有「内置文件」一个来源，
+               现在多了一份「用户自己挑的文件」—— 而**把哪个导进去**是这一页
+               唯一的前提。用户必须一眼看清"我现在要导的是哪份"，
+               否则就会出现"我明明选了备份，怎么导进去的是演示数据"这种事。 */
+            CardBlock {
+                Text("要从哪份数据导入", style = MaterialTheme.typography.titleSmall)
+                HLine()
+                KeyValue("当前", vm.sourceLabel)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Button(
+                        onClick = { pickFile.launch(arrayOf("*/*")) },
+                        enabled = !vm.busy,
+                    ) {
+                        Text("选择备份文件")
+                    }
+                    if (vm.usingFile) {
+                        OutlinedButton(onClick = { vm.useBuiltin() }, enabled = !vm.busy) {
+                            Text("换回内置")
+                        }
+                    }
+                }
+            }
+
             vm.problem?.let { why ->
                 CardBlock {
+                    // ⚠️ 这里**不加前缀**：`ImportViewModel.reload()` 已经按来源
+                    //    把话写全了（内置那边是"读不出内置的旧数据文件：…"，
+                    //    外部文件那边直接就是 `LegacyImport` 返回的那句）。
+                    //    在这儿再加一句就变成"读不出…：读不出…"。
                     Text(
-                        text = "读不出内置的旧数据文件：$why",
+                        text = why,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -134,6 +181,29 @@ fun ImportScreen(
                         )
                         Text(
                             text = "它们会挂到同名或原本对应的分类下。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
+
+                /* 自建分类会顺带被重建 —— 只有"从另一台设备导回来"时才可能出现。
+                   必须写出来：用户看到分类列表里多了一个，得能回想起它是哪来的。 */
+                if (p.toCreateCategories.isNotEmpty()) {
+                    CardBlock {
+                        Text(
+                            text = "会新建 ${p.toCreateCategories.size} 个分类",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        HLine()
+                        Text(
+                            text = p.toCreateCategories.joinToString("、"),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "这几个分类在这台手机的 App 里没有（通常是你自己建的），" +
+                                "导入时会按备份里的名字和颜色重建。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 6.dp),

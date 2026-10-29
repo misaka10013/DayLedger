@@ -30,12 +30,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.misaka.timelog.domain.TemplateEdit
 import com.misaka.timelog.ui.CatalogViewModel
+import com.misaka.timelog.ui.ExportViewModel
 import com.misaka.timelog.ui.ImportViewModel
 import com.misaka.timelog.ui.StatsViewModel
 import com.misaka.timelog.ui.SyncViewModel
 import com.misaka.timelog.ui.TemplateViewModel
 import com.misaka.timelog.ui.TimelineViewModel
 import com.misaka.timelog.ui.screen.CategoryScreen
+import com.misaka.timelog.ui.screen.ExportScreen
 import com.misaka.timelog.ui.screen.ImportScreen
 import com.misaka.timelog.ui.screen.ItemScreen
 import com.misaka.timelog.ui.screen.SettingsScreen
@@ -61,7 +63,7 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 }
 
 /** 设置页内部的二级页面。 */
-private enum class SettingsRoute { Home, Categories, Items, Tags, Template, Import }
+private enum class SettingsRoute { Home, Categories, Items, Tags, Template, Import, Export }
 
 class MainActivity : ComponentActivity() {
 
@@ -221,6 +223,7 @@ private fun MainScreen() {
                         onOpenTags = { settingsRoute = SettingsRoute.Tags },
                         onOpenTemplate = { settingsRoute = SettingsRoute.Template },
                         onOpenImport = { settingsRoute = SettingsRoute.Import },
+                        onOpenExport = { settingsRoute = SettingsRoute.Export },
                         syncEnabled = syncViewModel.enabled,
                         syncBaseUrl = syncViewModel.baseUrl,
                         syncToken = syncViewModel.token,
@@ -261,6 +264,17 @@ private fun MainScreen() {
                             viewModel(factory = ImportViewModel.Factory)
                         ImportScreen(
                             vm = importViewModel,
+                            onBack = { settingsRoute = SettingsRoute.Home },
+                        )
+                    }
+
+                    SettingsRoute.Export -> {
+                        // 跟 Import 一样**只在这一支里创建**：它一建出来就会读一遍整库算概况，
+                        // 挂在外面等于每次冷启动都白读 6800 段记录。
+                        val exportViewModel: ExportViewModel =
+                            viewModel(factory = ExportViewModel.Factory)
+                        ExportScreen(
+                            vm = exportViewModel,
                             onBack = { settingsRoute = SettingsRoute.Home },
                         )
                     }

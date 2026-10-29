@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Sell
@@ -77,6 +78,7 @@ fun SettingsScreen(
     onOpenTags: () -> Unit,
     onOpenTemplate: () -> Unit,
     onOpenImport: () -> Unit,
+    onOpenExport: () -> Unit,
     /** 云同步（M4-B）：开关 / 地址 / token / 状态文案 / 是否正在同步。 */
     syncEnabled: Boolean,
     syncBaseUrl: String,
@@ -136,6 +138,16 @@ fun SettingsScreen(
 
         SectionLabel("数据")
 
+        /* ★「导出」排在「导入」前面。
+           导入是一次性的（从旧 App 搬完就不用再点了），
+           导出是**周期性**的（换手机、留底、想让 AI 看看最近的时间去哪了）。
+           常用动作放上面，符合这一页一贯的顺序逻辑。 */
+        SettingsRow(
+            icon = Icons.Filled.IosShare,
+            title = "导出数据",
+            subtitle = "存一份备份 · 生成给 AI 读的记录",
+            onClick = onOpenExport,
+        )
         SettingsRow(
             icon = Icons.Filled.Restore,
             title = "从旧版时间日志导入",

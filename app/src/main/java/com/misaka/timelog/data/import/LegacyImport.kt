@@ -3,9 +3,12 @@ package com.misaka.timelog.data.import
 import android.content.res.AssetManager
 import androidx.room.withTransaction
 import com.misaka.timelog.data.TimeLogDatabase
+import com.misaka.timelog.data.dao.CategoryDao
+import com.misaka.timelog.data.entity.CategoryEntity
 import com.misaka.timelog.data.entity.ItemEntity
 import com.misaka.timelog.data.newId
 import com.misaka.timelog.data.repo.TimelineRepository
+import com.misaka.timelog.domain.ColorSeries
 import com.misaka.timelog.domain.ImportDay
 import com.misaka.timelog.domain.ImportReport
 import com.misaka.timelog.domain.ImportSegment
@@ -56,8 +59,17 @@ class LegacyImport(
      * 这一条是硬要求：用户在设置页点进去的那一下，不该有任何副作用。
      * 所以它**不建事项**，只是把「有哪 5 个事项得新建」算出来给用户看。
      */
-    suspend fun preview(): Outcome<ImportPreview> {
-        val parsed = load()
+    suspend fun preview(): Outcome<ImportPreview> = withAssetText { previewOf(it) }
+
+    /**
+     * 预览**一份外部文件**（用户在系统文件选择器里挑的那份）。
+     *
+     * 和 [preview] 唯一的区别是数据从哪来。解析失败**不抛异常**，
+     * 而是返回 [Outcome.Blocked] —— 用户可能选中了任何一张图片或者聊天记录，
+     * 那是正常操作失误，不该让 App 崩掉。
+     */
+    suspend fun previewOf(text: String): Outcome<ImportPreview> {
+        val parsed = parseOrNull(text) ?: return notBackup()
         val plan = plan(parsed)
 
         val toCreateNames = parsed.newItems.map { it.name }.filter { it in plan.unresolvedItems }
@@ -72,6 +84,9 @@ class LegacyImport(
                 firstDay = parsed.days.firstOrNull()?.day ?: "",
                 lastDay = parsed.days.lastOrNull()?.day ?: "",
                 toCreate = toCreateNames,
+                // 自建分类会顺带被重建 —— 这件事得让用户在按下去之前就知道，
+                // 而不是导完发现「怎么多了一个分类」。
+                toCreateCategories = plan.categoriesToCreate,
                 hardMissingItems = hardMissing,
                 missingTags = plan.unresolvedTags.sorted(),
                 existingRecords = db.recordDao().countAll(),
@@ -80,15 +95,23 @@ class LegacyImport(
     }
 
     /**
-     * 真导入。
+     * 真导入（读随包内置的那份）。
      *
      * 顺序：**先按名字补齐事项 → 再解析 → 再整库替换**。
      *
      * ⚠️ 补齐事项这一步是幂等的（已经有了就跳过），所以导入失败之后再点一次
      * 也不会多建出一份重名事项。
      */
-    suspend fun run(): Outcome<ImportReport> {
-        val parsed = load()
+    suspend fun run(): Outcome<ImportReport> = withAssetText { runOf(it) }
+
+    /**
+     * 真导入**一份外部文件**（就是「导出 → 换机 → 导回来」那条路）。
+     *
+     * ⚠️ 它跟 [run] 走的是同一条代码路径（`ensureItems` → `plan` → `replaceAllRecords`），
+     * 所以不存在「备份导回来和内置数据导入行为不一样」这种可能。
+     */
+    suspend fun runOf(text: String): Outcome<ImportReport> {
+        val parsed = parseOrNull(text) ?: return notBackup()
 
         // ① 先把 App 里没有、但记录里用到的事项建出来
         ensureItems(parsed.newItems)
@@ -103,7 +126,7 @@ class LegacyImport(
         }
 
         // ③ 换整份数据（校验 / 补空白 / 留快照全在仓库里）
-        return timeline.replaceAllRecords(plan.spec, "导入旧版时间日志（${parsed.days.size} 天）")
+        return timeline.replaceAllRecords(plan.spec, "导入（${parsed.days.size} 天）")
     }
 
     /** 撤销上一次整库替换。 */
@@ -130,8 +153,20 @@ class LegacyImport(
 
     private class RawDay(val day: String, val segments: List<RawSegment>)
 
-    /** 记录里用到、但 App 的字典里没有、需要新建的事项。 */
-    private class NewItem(val name: String, val categoryId: String)
+    /**
+     * 记录里用到、但 App 的字典里没有、需要新建的事项。
+     *
+     * `categoryName` / `categoryColorHex` 是**本 App 的导出备份才有的可选字段**
+     * （内置的旧版文件里没有）。它们解决的是同一个问题：**换设备之后，
+     * 用户自建的那个分类在目标库里根本不存在**（真实库里就有一个 UUID 的「学习」），
+     * 只有 id 的话 `ensureItems` 找不到归属，整个导入就被拦下。
+     */
+    private class NewItem(
+        val name: String,
+        val categoryId: String,
+        val categoryName: String?,
+        val categoryColorHex: String?,
+    )
 
     private class Parsed(val days: List<RawDay>, val newItems: List<NewItem>)
 
@@ -144,12 +179,43 @@ class LegacyImport(
         val segmentCount: Int,
         val gapCount: Int,
         val gapMinutes: Int,
+        /**
+         * 会**顺带新建**的分类名。
+         *
+         * 只有一种情况会非空：备份来自另一台设备，里面有用户自建的分类
+         * （或者事项挂在 `newItems` 带过来的分类上）。内置的旧版文件永远是空的 ——
+         * 它的事项全部落在种子分类里。
+         */
+        val categoriesToCreate: List<String>,
     )
 
-    private fun load(): Parsed {
-        val text = assets.open(ASSET).bufferedReader(Charsets.UTF_8).use { it.readText() }
-        return parse(text)
+    /**
+     * 读随包内置的那份文件，并把它交给 [block]。
+     *
+     * 单独抽出来是为了让 [preview] / [run] 的外部版本（[previewOf] / [runOf]）
+     * **走完全同一条后续路径** —— 唯一不同的只有「文字从哪来」。
+     *
+     * ⚠️ 这里 catch 的是「文件本身读不出来」（assets 缺失 / IO 失败）。
+     *    assets 是随包出厂的，正常永远不会失败；但不 catch 的话，
+     *    一旦失败就是整个设置页崩掉，而失败原因一个字都看不到。
+     */
+    private suspend fun <T> withAssetText(block: suspend (String) -> Outcome<T>): Outcome<T> =
+        try {
+            val text = assets.open(ASSET).bufferedReader(Charsets.UTF_8).use { it.readText() }
+            block(text)
+        } catch (t: Throwable) {
+            Outcome.Blocked("内置数据文件读不出来：${t.message ?: t.javaClass.simpleName}")
+        }
+
+    /** 解析；不是合法 JSON 或结构不对就返回 `null`（**绝不往外抛**）。 */
+    private fun parseOrNull(text: String): Parsed? = try {
+        parse(text)
+    } catch (t: Throwable) {
+        null
     }
+
+    private fun notBackup(): Outcome.Blocked =
+        Outcome.Blocked("这个文件不是「一天账本」导出的备份（缺少 days / newItems 这些必需字段）。")
 
     /**
      * 解 JSON。
@@ -188,7 +254,14 @@ class LegacyImport(
         if (niArr != null) {
             for (i in 0 until niArr.length()) {
                 val o = niArr.getJSONObject(i)
-                newItems += NewItem(o.getString("name"), o.getString("categoryId"))
+                newItems += NewItem(
+                    name = o.getString("name"),
+                    // 三个都按「可选」读：内置的旧版文件只有 categoryId，
+                    // 而导出备份多带两个 —— 少一个就用不上，不能因此报错。
+                    categoryId = o.optString("categoryId", ""),
+                    categoryName = o.optString("categoryName", "").ifEmpty { null },
+                    categoryColorHex = o.optString("categoryColorHex", "").ifEmpty { null },
+                )
             }
         }
 
@@ -205,6 +278,18 @@ class LegacyImport(
     private suspend fun plan(parsed: Parsed): Plan {
         val itemIdByName = db.itemDao().all().associate { it.name to it.id }
         val tagIdByName = db.tagDao().all().associate { it.name to it.id }
+
+        // 「将要新建的分类」——**只算不建**（preview 不能有副作用）。
+        // 判定跟 `ensureItems` 里那三行必须一致：id 命中 → 名字命中 → 才轮到新建。
+        val existingCats = db.categoryDao().all()
+        val categoriesToCreate = parsed.newItems
+            .filter { ni ->
+                existingCats.none { it.id == ni.categoryId } &&
+                    ni.categoryName != null &&
+                    existingCats.none { it.name == ni.categoryName }
+            }
+            .mapNotNull { it.categoryName }
+            .distinct()
 
         val unresolvedItems = linkedSetOf<String>()
         val unresolvedTags = linkedSetOf<String>()
@@ -264,6 +349,7 @@ class LegacyImport(
             segmentCount = segmentCount,
             gapCount = gapCount,
             gapMinutes = gapMinutes,
+            categoriesToCreate = categoriesToCreate,
         )
     }
 
@@ -280,15 +366,22 @@ class LegacyImport(
      */
     private suspend fun ensureItems(newItems: List<NewItem>): List<String> = db.withTransaction {
         val items = db.itemDao()
+        val catDao = db.categoryDao()
         val alive = items.all().map { it.name }.toMutableSet()
-        val categories = db.categoryDao().all()
+
+        // ⚠️ 必须是 var，**每建一个分类都要把它并进来**。
+        //    用进循环前那份快照的话：同一个新分类下的第二个事项会"又找不到"，
+        //    于是再建一个同名分类 —— 表现是导完之后多出一串重复分类，
+        //    而且不报错、只在「自建分类 + 多个事项」时才出现。
+        var categories = catDao.all()
         val created = mutableListOf<String>()
 
         newItems.forEach { ni ->
             if (!alive.add(ni.name)) return@forEach // 已经有了
 
             val cat = categories.firstOrNull { it.id == ni.categoryId }
-                ?: categories.firstOrNull { it.name == ni.name }
+                ?: ni.categoryName?.let { cn -> categories.firstOrNull { it.name == cn } }
+                ?: buildCategory(ni, categories, catDao)?.also { categories = categories + it }
                 ?: return@forEach
 
             items.insert(
@@ -307,6 +400,46 @@ class LegacyImport(
             created += ni.name
         }
         created
+    }
+
+    /**
+     * 目标库里没有这个分类（备份来自另一台设备、分类是用户自建的）→ **按备份重建一个**。
+     *
+     * ## 为什么非要建，而不是"随便挂个分类"
+     *
+     * 挂错分类是**静默的错**：记录照样导进去、数照样对得上，但统计口径全错，
+     * 而且用户不会发现 —— 他只会觉得"那几天的学习时间怎么不见了"。
+     * 建一个分类最多是「多了一个分类」，那是看得见、可以手动改的。
+     *
+     * ## id 为什么沿用备份里的
+     *
+     * 为了**幂等**：同一份备份导两次，第二次 `firstOrNull { it.id == ni.categoryId }`
+     * 会直接命中刚建的那个，不会再多建一个。
+     *
+     * ⚠️ 颜色：备份里有就用它（用户当初挑的那个），没有就取一个还没被占用的色系。
+     *    `ColorSeries` 是纯 Kotlin 的，放在数据层用没有依赖问题。
+     */
+    private suspend fun buildCategory(
+        ni: NewItem,
+        existing: List<CategoryEntity>,
+        catDao: CategoryDao,
+    ): CategoryEntity? {
+        val name = ni.categoryName?.trim().orEmpty()
+        if (name.isEmpty()) return null // 连名字都没有，就真的没法建了
+
+        val cat = CategoryEntity(
+            id = ni.categoryId.ifBlank { newId() },
+            name = name,
+            // ⚠️ `nextFreeSeries` 返回的是**色系索引（Int）**，不是颜色值 ——
+            //    要再经 `categoryColor(idx)` 才拿到 `#RRGGBB`。少转这一手类型就不对。
+            colorHex = ni.categoryColorHex?.takeIf { it.isNotBlank() }
+                ?: ColorSeries.categoryColor(
+                    ColorSeries.nextFreeSeries(existing.map { it.colorHex })
+                ),
+            position = catDao.nextPosition(),
+        )
+        catDao.insert(cat)
+        return cat
     }
 }
 
@@ -330,6 +463,15 @@ data class ImportPreview(
     val lastDay: String,
     /** 需要新建的事项名（App 里没有的那几个）。 */
     val toCreate: List<String>,
+    /**
+     * 会**顺带新建**的分类名。
+     *
+     * 非空只可能出现在一种场景：导入的是**另一台设备导出的备份**，里面有用户自建的分类。
+     * 内置的旧版文件里永远为空（它的事项全挂在种子分类下）。
+     *
+     * 界面要把这几个名字显示出来 —— 用户有权在按下去之前知道「会多出一个分类」。
+     */
+    val toCreateCategories: List<String>,
     /**
      * **字典里彻底找不到**的事项名。
      *

@@ -75,6 +75,29 @@
         </receiver>
 
         <!--
+          分享导出文件用的 FileProvider。
+
+          ★ 这里是整个 Manifest 里唯一一个 exported="false" 却要跟别的 App 打交道的组件：
+            它不是"对外暴露的入口"，而是"我方临时授权某一份文件给对方读"。
+            `grantUriPermissions="true"` 就是那扇只在分享那一刻打开的窗，
+            授权随 `Intent.FLAG_GRANT_READ_URI_PERMISSION` 走、随接收方任务结束失效。
+
+          ⚠️ authority 用 `${applicationId}.fileprovider`，
+             `ExportViewModel` 里是 `context.packageName + ".fileprovider"` —— 两边必须一致。
+          ⚠️ 路径白名单在 `res/xml/file_paths.xml`，只有 cacheDir/exports 一格。
+          ⚠️ 有了它**不需要** READ/WRITE_EXTERNAL_STORAGE，权限清单还是只有 INTERNET。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
           「每分钟到了」这个闹钟的落点。
           ⚠️ action 是自定义的（不是系统广播），所以静态注册在 Android 8+ 完全没有限制。
           ⚠️ 非精确重复闹钟**不需要任何权限**（SCHEDULE_EXACT_ALARM 那个要用户去设置里开，
