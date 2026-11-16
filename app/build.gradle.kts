@@ -54,8 +54,9 @@ android {
         // ⚠️ 发版之后**只能往上加**，不能减也不能重复。
         //    v1.0.0：本地导出 / 分享 / 从文件导入。
         //    v1.0.1：修 Markdown 导出被系统补成 `.md.txt`（MIME 用错，真机才发现）。
-        versionCode = 3
-        versionName = "1.0.1"
+        //    v1.0.2：上传报文补上标签（`t`）与备注（`n`）—— 云端 241 天标签为空就是这个坑。
+        versionCode = 4
+        versionName = "1.0.2"
 
         // 单元测试用的 JUnit 运行器（M1 写数据层测试时会用到）
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

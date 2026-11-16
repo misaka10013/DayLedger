@@ -106,4 +106,27 @@ interface TagDao {
      */
     @Query("SELECT * FROM record_tags")
     suspend fun allRefs(): List<RecordTagEntity>
+
+    /**
+     * 按「天」批量取回这些天里所有记录挂的标签（只要 id，名字由调用方自己映射）。
+     *
+     * ## 为什么专门加一个
+     *
+     * 同步上传时云端的 `segs[].t` 存的是**标签名**，所以每一段都得知道自己挂了哪些标签。
+     * 在拼报文的循环里一天查一次是最直观的写法，但首次同步要传 60 天 = 60 次查询，
+     * 而且每次都是「全表扫 + 按天过滤」的重复劳动。
+     * 一次性把要传的那几天全捞出来，只查 1 次，后面全在内存里分组。
+     */
+    @Query(
+        """
+        SELECT rt.recordId AS recordId, rt.tagId AS tagId
+        FROM record_tags rt
+        JOIN records r ON r.id = rt.recordId
+        WHERE r.day IN (:days) AND r.deleted = 0
+        """
+    )
+    suspend fun pairsOfDays(days: List<String>): List<RecordTagPair>
 }
+
+/** [TagDao.pairsOfDays] 的投影行：哪条记录挂了哪个标签。 */
+data class RecordTagPair(val recordId: String, val tagId: String)

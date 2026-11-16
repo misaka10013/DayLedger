@@ -79,6 +79,19 @@ class SyncEngine(
                 emptyMap()
             }
 
+            /* 记录 id → 它挂的标签名（云端 `segs[].t` 也是名字）。
+               ★ v1.0.2 修：这一段以前**根本没有**，于是上传的每一段都是「裸的」——
+                 只有 a/b/i/g，没有 t。云端 2026-08-19 之后那 241 天就是这么裸着的，
+                 直到 2026-11 才发现（用户的 AI 说「找不到标签数据」）。
+               ★ 一次查完要传的所有天，而不是在 buildDay 里一天查一遍：
+                 首次同步 60 天 = 60 次全表扫，没必要。 */
+            val tagNames = try {
+                val idToName = db.tagDao().all().associate { it.id to it.name }
+                groupTagNames(db.tagDao().pairsOfDays(days), idToName)
+            } catch (e: Exception) {
+                emptyMap()
+            }
+
             // 一天一天拼，按字节预算切批 —— 云端请求体上限约 100 KB，这里给 70 KB 留余量
             val batches = mutableListOf<MutableList<JSONObject>>()
             val lengths = mutableListOf<Int>()
@@ -87,7 +100,7 @@ class SyncEngine(
 
             for (day in days) {
                 val obj = try {
-                    buildDay(day, now, itemName)
+                    buildDay(day, now, itemName, tagNames)
                 } catch (e: Exception) {
                     null
                 } ?: continue
@@ -143,6 +156,7 @@ class SyncEngine(
         day: String,
         now: com.misaka.timelog.domain.Now,
         itemName: Map<String, String>,
+        tagNames: Map<String, List<String>>,
     ): JSONObject? {
         val cut = Density.cutFor(day, now)
         if (cut <= 0) return null                       // 未来的天一条都不传
@@ -162,7 +176,7 @@ class SyncEngine(
                 // 空白是「一等公民」，补上它既满足密铺，也如实表达了「这段没记」。
                 if (a > prevEnd) arr.put(gapSeg(prevEnd, a))
             }
-            arr.put(segJson(r, a, b, itemName))
+            arr.put(segJson(r, a, b, itemName, tagNames))
             prevEnd = b
         }
         if (prevEnd == 0) return null
@@ -174,7 +188,13 @@ class SyncEngine(
         return o
     }
 
-    private fun segJson(r: RecordEntity, a: Int, b: Int, itemName: Map<String, String>): JSONObject =
+    private fun segJson(
+        r: RecordEntity,
+        a: Int,
+        b: Int,
+        itemName: Map<String, String>,
+        tagNames: Map<String, List<String>>,
+    ): JSONObject =
         JSONObject().apply {
             put("a", a)
             put("b", b)
@@ -185,6 +205,22 @@ class SyncEngine(
                    而 App 里明明写着「（事项已删除）」。两处名字不一样，正是
                    最让人不信任数据的那种偏差。 */
                 put("i", itemName[r.itemId] ?: "（事项已删除）")
+
+                /* 标签。云端 `routeTlSync` 每段最多收 12 个（超了它自己会 slice），
+                   这里先截断，免得「App 里挂着 15 个、云端只有 12 个」这种静默偏差。 */
+                val tags = tagNames[r.id]
+                if (!tags.isNullOrEmpty()) {
+                    val arr = JSONArray()
+                    tags.take(12).forEach { arr.put(it) }
+                    put("t", arr)
+                }
+
+                /* 备注。⚠️ 云端这一版的 `routeTlSync` 字段白名单里**没有** n，
+                   传上去会被丢掉 —— 但照样传：
+                     1. 不传的话将来云端补上白名单，还得再改一次 App；
+                     2. 云端的 `checkDaySegs` 只校验 a/b/g，多余的键不会触发 400。 */
+                val note = r.note.trim()
+                if (note.isNotEmpty()) put("n", note)
             }
         }
 
@@ -225,3 +261,32 @@ class SyncEngine(
         const val MAX_BYTES_PER_BATCH = 70_000
     }
 }
+
+/**
+ * 把「记录↔标签」的关联行整理成 `记录 id → 标签名列表`。
+ *
+ * ## 为什么单独拎出来做顶层函数
+ *
+ * 这段一旦返回空 Map，上传就会**静默**退化成「每一段都不带标签」——
+ * 不报错、不崩溃、App 里看着一切正常，只有云端的 AI 会在两个月后说「找不到标签数据」。
+ * 2026-08-19 到 2026-11-16 那 241 天就是这么丢的。
+ *
+ * 抽成纯函数之后可以单测：给定关联行和 id→名字映射，必须得到正确的分组。
+ * `it` 不用问「为什么这也要测」，问的是「这个 bug 复发时谁来报错」。
+ *
+ * ## 两条静默失败的防线
+ *
+ * 1. `idToName[tagId]` 查不到（标签被删了但关联还在，理论上 CASCADE 会清掉）
+ *    → 过滤掉 null，而不是塞一个空字符串上去 —— 空标签名会让云端多出一个「」标签。
+ * 2. 一个标签都没有的记录**不进 Map**（`filterValues`），
+ *    这样 `segJson` 里 `tagNames[r.id]` 为 null 就自然跳过 `t` 字段，
+ *    不会写出一堆 `"t": []` 空数组把报文撑大。
+ */
+internal fun groupTagNames(
+    pairs: List<com.misaka.timelog.data.dao.RecordTagPair>,
+    idToName: Map<String, String>,
+): Map<String, List<String>> =
+    pairs
+        .groupBy({ it.recordId }, { idToName[it.tagId] })
+        .mapValues { (_, names) -> names.filterNotNull().filter { it.isNotBlank() } }
+        .filterValues { it.isNotEmpty() }
